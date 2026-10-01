@@ -2,75 +2,74 @@
 
 Repository: https://github.com/rajeshyemul/qe-tool-calling-from-scratch
 
-This project is the next step in the learning journey after RAG.
+A hands-on learning project that builds tool calling in clear, testable stages: first with deterministic selection and response generation, then with a local Qwen model served by Ollama.
 
-It intentionally stays small and explicit. The goal is not to build a full agent or production workflow yet. The goal is to understand the mechanics of tool calling in a way that is visible, testable, and easy to reason about.
+## Learning progression
 
-## What this project teaches
+### V1 — single deterministic tool
 
-This project teaches the core pattern behind tool-calling systems:
+V1 introduced one product-price tool and a small local catalog, along with tests for expected failures.
 
-- the model decides which tool to call
-- the application executes the tool
-- the function returns real data
-- the result is sent back to the model
-- the model turns that result into a final answer
+Tag: `v1-tool-calling-baseline`
 
-This is the foundation for later stages such as single-agent loops, planning, memory, MCP, and multi-agent systems.
+### V2 — deterministic multi-tool flow
 
-## Learning boundary
+The deterministic path demonstrates three separate tools:
 
-This repository is intentionally limited to the following scope:
+- `get_product(product_id)` — basic product details
+- `get_product_price(product_id)` — price and currency
+- `check_inventory(product_id)` — stock status and quantity
 
-- one product tool
-- one deterministic catalog
-- no agents
-- no memory
-- no MCP
-- no multi-agent orchestration
-- no external API integration
+A rule-based selector chooses zero or more tools. The application validates the complete plan before it dispatches calls, collects results, and uses a deterministic response generator.
 
-This project is a controlled interaction loop, not a full autonomous system.
+### V2.5 — real local LLM tool calling
 
-## Version 1: single tool
+The Ollama path uses Qwen to select tools, then leaves validation and execution to the Python application. A second Qwen call receives the original question and execution results **without tool definitions** and generates the final answer.
 
-The first milestone is a single tool:
+The model proposes calls; the application validates and executes them. The model does not run Python functions directly. This remains tool calling, not an agent: there is no autonomous loop, retries, memory, or planning.
 
-- `get_product_price(product_id)`
+## Choose a run mode
 
-Example user question:
+Run commands from the project root.
 
-> What is the price of product P1001?
+### Deterministic V2 flow
 
-The flow is conceptually:
-
-```text
-User request
-   ↓
-LLM decides: call get_product_price(P1001)
-   ↓
-Application executes the tool
-   ↓
-Tool returns product data
-   ↓
-LLM generates final answer
+```bash
+python3 main.py
 ```
 
-This is the baseline for the learning project.
+This runs the rule-based selector, existing Python tools, and deterministic response generator. It does not call Ollama. Edit `user_question` in `main.py` to try a different question.
 
-## Failure lab
+### Local Ollama/Qwen end-to-end flow
 
-This repo also includes a deliberate failure-learning phase.
+Prerequisites:
 
-It tests:
+- Ollama installed and running locally
+- The `qwen3.5:latest` model pulled in Ollama
 
-- missing product ID
-- unknown product
-- non-tool question
-- invalid input
-- tool execution failure
+Run:
 
-The purpose is to understand how tool-calling systems fail safely and how the application boundary controls those failures.
+```bash
+python3 ollama_execution_demo.py
+```
+
+This prints Qwen's raw tool calls, sends the normalized calls through the existing application validator and runner, displays the tool results, then prints the response from the second Qwen call. The second request is sent with no tools.
+
+The default endpoint is `http://localhost:11434`; the default model is `qwen3.5:latest`. Override them using `OLLAMA_HOST` and `OLLAMA_MODEL`, respectively.
+
+For a selector-only preview that does not execute tools, run:
+
+```bash
+python3 ollama_tool_call_preview.py
+```
+
+## Run tests
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The test suite covers the tools, deterministic decisions and responses, Ollama request/response handling, call normalization, validation-before-execution, multi-tool dispatch, and the two-call response handoff. Tests use mocked Ollama responses and do not require network access.
 
 ## Project structure
 
@@ -79,77 +78,26 @@ qe-tool-calling-from-scratch/
 ├── data/
 │   └── products.json
 ├── src/
-│   ├── __init__.py
-│   ├── tool_runner.py
 │   ├── llm/
-│   │   ├── __init__.py
-│   │   └── client.py
-│   └── tools/
-│       ├── __init__.py
-│       └── product_tools.py
+│   │   ├── client.py                 # deterministic selector
+│   │   ├── ollama_client.py          # Ollama tool selection and final response
+│   │   └── response.py               # deterministic response generator
+│   ├── tools/
+│   │   └── product_tools.py          # local product data functions
+│   └── tool_runner.py                # validation, dispatch, result collection
 ├── tests/
-│   └── test_tool_calling.py
-├── main.py
-├── requirements.txt
-├── README.md
-├── .gitignore
-└── .venv/   # local only; not committed
+├── main.py                           # deterministic V2 entry point
+├── ollama_execution_demo.py          # real local LLM end-to-end entry point
+├── ollama_tool_call_preview.py       # tool-call preview only
+└── requirements.txt
 ```
 
-## Why this matters
+## Current checkpoint
 
-The critical distinction is:
+V2 and V2.5 tool-calling flows are implemented and tested. The next learning stage is a separate Single Agent project; this repository intentionally does not add an agent loop.
 
-- the model decides what to do
-- the application executes the action
-- the model interprets the result
-
-That separation is the heart of tool calling, and it becomes the basis for single-agent systems later.
-
-## Run the demo
-
-```bash
-python3 main.py
-```
-
-Current demo question:
-
-```text
-What is the price of product P1001?
-```
-
-## Run the tests
-
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-## Status
-
-This repository is currently at the V1 baseline for tool calling.
-
-The next stage is the planned V2 bridge:
-
-- multiple tools
-- tool selection among alternatives
-- combined results from more than one tool
-
-After that, the next conceptual stage is the single-agent loop.
-
-## Repository intent
-
-This repository is meant to preserve a clean learning checkpoint before adding complexity.
-
-Each stage is intentionally kept small enough to understand deeply before moving to the next one.
-
-## Recommended versioning
-
-Suggested tags for this project:
+Suggested checkpoint tags:
 
 - `v1-tool-calling-baseline`
-- `v1-tool-calling-failure-lab`
 - `v2-multi-tool-selection`
-- `v3-single-agent-loop`
-
-This makes it easy to preserve the learning progression as separate, reviewable checkpoints.
-
+- `v2.5-ollama-tool-calling`
